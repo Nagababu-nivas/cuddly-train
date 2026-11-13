@@ -1,0 +1,9 @@
+# Use this file when the repository root is the Orange folder itself.
+# Orange is a build-free static app: no npm install and no build command.
+[build]
+  publish = "."
+  command = ""
+
+# Routing note: Orange uses hash routes (#/listen, #/album/...). Every real
+# request is for "/" so no SPA rewrite is needed, and refreshing a page works.
+# Security headers live in `_headers`, which Netlify also reads on Netlify Drop.

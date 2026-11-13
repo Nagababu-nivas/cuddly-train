@@ -1,0 +1,9 @@
+# Use this file when the repository root contains the `orange` folder.
+# If you instead make Orange itself the repository root, the included
+# orange/netlify.toml is used automatically.
+[build]
+  publish = "orange"
+  command = ""
+
+# Hash routing means no SPA redirect is required. Security headers are in
+# orange/_headers and apply to the published site.

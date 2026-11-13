@@ -7,26 +7,26 @@ import {
   $, $$, esc, parseHash, buildHash, formatTime, formatBytes, clamp, shuffleArray,
   uniqueBy, sleep, copyText, downloadText, plural, art, debounce, isTypingTarget,
   shortcutLabel, safeUrl, bus,
-} from './util.js?v=orange3';
-import { icon } from './icons.js?v=orange3';
-import { store } from './store.js?v=orange3';
-import { player, EQ_FREQUENCIES, EQ_PRESETS } from './player.js?v=orange3';
-import { db } from './db.js?v=orange3';
-import * as api from './api.js?v=orange3';
-import * as pages from './pages.js?v=orange3';
-import { importFiles, isSupportedAudio } from './metadata.js?v=orange3';
+} from './util.js?v=orange4';
+import { icon } from './icons.js?v=orange4';
+import { store } from './store.js?v=orange4';
+import { player, EQ_FREQUENCIES, EQ_PRESETS } from './player.js?v=orange4';
+import { db } from './db.js?v=orange4';
+import * as api from './api.js?v=orange4';
+import * as pages from './pages.js?v=orange4';
+import { importFiles, isSupportedAudio } from './metadata.js?v=orange4';
 import {
   viewState, setNavigator, go, goAlbum, goArtist, goSearch, resetView, setHeader,
   scrollMainTop, getTrackList, getTrackContext, registerTrackList, registerList,
   pageHead, shelf, card, emptyState, trackTable, groupLibraryAlbums,
   groupLibraryArtists, artworkOf, displayName, fallbackStyle, artMedia, likeButton,
   totalDuration, downloadPreview,
-} from './viewkit.js?v=orange3';
+} from './viewkit.js?v=orange4';
 import {
   toast, openModal, closeModal, confirmDialog, promptDialog, openMenu, closeMenu,
   setTheme, watchSystemTheme, accentPresets, progressModal, showToastForError,
   closeTopLayer, bindGlobalUi, wireImageFallbacks,
-} from './ui.js?v=orange3';
+} from './ui.js?v=orange4';
 
 let currentRoute = '/listen';
 let routeToken = 0;
@@ -265,11 +265,12 @@ function renderPlayer() {
   $('#player-title').textContent = current ? current.title : 'Nothing playing';
   const artistName = current?.artist || '';
   const liveSuffix = current?.source === 'radio' && !/live radio/i.test(artistName) ? ' · Live radio' : '';
-  const localSuffix = player.usingLocalMatch ? ' · Your local file' : '';
-  const audiusSuffix = current?.source === 'audius' && !player.usingLocalMatch ? ' · Audius' : '';
-  const previewSuffix = current && !player.usingLocalMatch && current.source !== 'radio' && current.source !== 'local' && current.preview ? ' · Free preview' : '';
+  const localSuffix = player.usingLocalMatch ? ' · Your local file (Full)' : '';
+  const fullSuffix = (player.usingFullStream || current?.isFullTrack) && !player.usingLocalMatch ? ' · Full track' : '';
+  const isPreview = current && !player.usingLocalMatch && !player.usingFullStream && !current?.isFullTrack && current.source !== 'radio' && current.source !== 'local' && current.preview;
+  const previewSuffix = isPreview ? ' · 30s Preview' : '';
   $('#player-artist').textContent = current
-    ? `${artistName}${liveSuffix}${localSuffix}${audiusSuffix}${previewSuffix}`
+    ? `${artistName}${liveSuffix}${localSuffix}${fullSuffix}${previewSuffix}`
     : 'Choose a song to begin';
   const like = $('#player-like');
   if (like) {
@@ -635,7 +636,7 @@ function renderLyricsPanel() {
   } else {
     const lines = state.data.lines || [];
     const synced = Boolean(state.data.synced);
-    const previewTiming = synced && current.preview && current.source !== 'local' && !current.offline && !player.usingLocalMatch;
+    const previewTiming = synced && current.preview && current.source !== 'local' && !current.offline && !player.usingLocalMatch && !player.usingAudiusMatch;
     content = `<div class="lyrics-scroll" data-lyrics-container>
       ${lines.map((line) => line.time !== null
         ? `<button class="lyric-line" data-act="seek-lyric" data-time="${line.time}" data-lyric-time="${line.time}" title="Play from this line">${esc(line.text)}</button>`

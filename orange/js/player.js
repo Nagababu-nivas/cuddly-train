@@ -4,10 +4,10 @@
  * radio streams never require an account or subscription.
  */
 
-import { bus, clamp, formatTime, shuffleArray, sleep } from './util.js?v=orange3';
-import { store } from './store.js?v=orange3';
-import { db } from './db.js?v=orange3';
-import { lookup } from './api.js?v=orange3';
+import { bus, clamp, formatTime, shuffleArray, sleep } from './util.js?v=orange4';
+import { store } from './store.js?v=orange4';
+import { db } from './db.js?v=orange4';
+import { lookup, findAudiusMatch, findFullTrackStream } from './api.js?v=orange4';
 
 const EQ_FREQUENCIES = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
 const EQ_PRESETS = {
@@ -59,6 +59,11 @@ class AudioEngine {
     this.transitioning = false;
     this.usingLocalMatch = false;
     this.localMatchTrack = null;
+    this.usingAudiusMatch = false;
+    this.audiusMatchTrack = null;
+    this.usingFullStream = false;
+    this.fullStreamTrack = null;
+    this.previewToastShown = false;
     this.audiusFallbackTried = false;
     this.audiusPreviewWarned = false;
     this.lastAudiusDebugTime = 0;
@@ -423,6 +428,10 @@ class AudioEngine {
     if (!track) throw new Error('No track selected.');
     this.usingLocalMatch = false;
     this.localMatchTrack = null;
+    this.usingAudiusMatch = false;
+    this.audiusMatchTrack = null;
+    this.usingFullStream = false;
+    this.fullStreamTrack = null;
     if (track.audioKey && (track.source === 'local' || track.offline)) {
       const key = track.audioKey;
       if (this.objectUrls.has(key)) return this.objectUrls.get(key);
@@ -451,11 +460,42 @@ class AudioEngine {
         }
       }
     }
-    if (track.source === 'audius') {
-      if (track.streamUrl) return track.streamUrl;
-      throw new Error('This Audius track does not expose a playable stream.');
+    if (track.source === 'audius' && track.streamUrl) {
+      return track.streamUrl;
     }
-    if (track.preview) return track.preview;
+    // Attempt full-length track streaming before settling for a 30-second preview
+    if (track.source !== 'local' && !track.offline) {
+      try {
+        const fullStream = await findFullTrackStream(track, { timeout: 3000 });
+        if (fullStream?.streamUrl) {
+          this.usingFullStream = true;
+          this.fullStreamTrack = fullStream;
+          track.streamUrl = fullStream.streamUrl;
+          track.streamFallbackUrl = fullStream.streamFallbackUrl;
+          track.isFullTrack = true;
+          if (fullStream.duration) track.duration = fullStream.duration;
+          bus.emit('toast', {
+            message: `Playing full track: “${track.title}”`,
+            icon: 'music',
+            duration: 3000,
+          });
+          return fullStream.streamUrl;
+        }
+      } catch {
+        /* proceed to preview */
+      }
+    }
+    if (track.preview) {
+      if (!this.previewToastShown && !this.usingLocalMatch && !this.usingFullStream) {
+        this.previewToastShown = true;
+        bus.emit('toast', {
+          message: 'Playing 30-second preview. Add your full file via "Add Music".',
+          icon: 'info',
+          duration: 4000,
+        });
+      }
+      return track.preview;
+    }
     if (track.source === 'local') {
       const key = `audio-${track.id}`;
       if (this.objectUrls.has(key)) return this.objectUrls.get(key);

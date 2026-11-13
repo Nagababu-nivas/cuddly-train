@@ -1,7 +1,7 @@
 /* Shared UI primitives: toasts, modals, menus, theme and image fallbacks. */
 
-import { $, $$, clamp, esc, uid } from './util.js?v=orange3';
-import { icon } from './icons.js?v=orange3';
+import { $, $$, clamp, esc, uid } from './util.js?v=orange4';
+import { icon } from './icons.js?v=orange4';
 
 let activeModal = null;
 let activeMenu = null;

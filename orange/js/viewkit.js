@@ -2,10 +2,10 @@
 
 import {
   $, esc, art, formatTime, gradientFor, hashString, initials, plural, yearOf,
-} from './util.js?v=orange3';
-import { icon } from './icons.js?v=orange3';
-import { store } from './store.js?v=orange3';
-import { player } from './player.js?v=orange3';
+} from './util.js?v=orange4';
+import { icon } from './icons.js?v=orange4';
+import { store } from './store.js?v=orange4';
+import { player } from './player.js?v=orange4';
 
 export const viewState = {
   route: '/listen',
@@ -313,6 +313,11 @@ export function trackTable(tracks, {
         <tbody>
           ${list.map((track, index) => {
             const playing = track.id === currentId;
+            const isLocal = track.source === 'local' || track.offline;
+            const isAudius = track.source === 'audius';
+            const hasLocal = !isLocal && !isAudius && Boolean(store.localMatch(track));
+            const isPreview = !isLocal && !isAudius && !hasLocal && !track.isFullTrack && Boolean(track.preview);
+            const sourceTag = isLocal ? ' · Local file' : isAudius ? ' · Audius (Full track)' : hasLocal ? ' · Local match' : isPreview ? ' · 30s Preview' : '';
             return `
               <tr class="track-row ${playing ? 'playing' : ''}" data-act="play-row" data-list="${esc(listKey || '')}" data-index="${index}" data-track-id="${esc(track.id)}" data-search="${esc(`${track.title} ${track.artist} ${track.album}`.toLowerCase())}">
                 <td class="num">${playing ? icon('wave', 15) : index + 1}</td>
@@ -323,12 +328,14 @@ export function trackTable(tracks, {
                     </span>
                     <span class="titles">
                       <span class="t-title">${esc(track.title)}${track.explicit ? '<span class="explicit">E</span>' : ''}</span>
-                      <span class="t-sub">${esc(track.artist)}${track.source === 'local' ? ' · Local' : track.source === 'audius' ? ' · Audius' : ''}</span>
+                      <span class="t-sub">${esc(track.artist)}${sourceTag}</span>
                     </span>
                   </div>
                 </td>
                 ${showAlbum ? `<td class="album-col"><button class="text-link" data-act="open-album-link" data-id="${esc(track.albumId || '')}" data-name="${esc(track.album || '')}" ${!track.albumId ? 'disabled' : ''}>${esc(track.album || '—')}</button></td>` : ''}
-                <td class="dur">${track.duration ? formatTime(track.duration) : '—'}</td>
+                <td class="dur" ${isPreview ? `title="30-second catalog preview (full track length: ${formatTime(track.duration)})"` : ''}>
+                  ${isPreview ? '<span class="badge preview" style="font-size:8.5px; height:15px; padding:0 4px; margin-right:4px;">Preview</span>0:30' : (track.duration ? formatTime(track.duration) : '—')}
+                </td>
                 <td class="dl">${downloadButton(track)}</td>
                 <td class="like">${likeButton(track)}</td>
                 <td class="more">${moreButton(track, listKey, index)}</td>

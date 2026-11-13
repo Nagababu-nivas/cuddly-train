@@ -100,11 +100,14 @@ export function normalizeAudiusTrack(item) {
   // /stream endpoint only serves a 30-second preview or a 403. They cannot
   // be played in full without the listener's purchase/follow/token, so keep
   // them out of the queue instead of silently skipping them mid-playback.
-  if (item.is_stream_gated) return null;
+  if (item.is_stream_gated || item.is_premium || item.is_gated) return null;
+  if (item.premium_conditions || item.stream_conditions) return null;
   if (item.is_available === false) return null;
+  if (item.allowed_api_stream === false) return null;
   if (item.access && item.access.stream === false) return null;
-  if (item.stream_conditions) return null;
+  if (item.preview_duration && (item.is_stream_gated || item.is_premium || item.stream_conditions)) return null;
   const duration = Number(item.duration) || 0;
+  if (item.preview_duration && duration <= 35) return null;
   const artist = item.user?.name || 'Audius artist';
   const playlist = item.album_backlink;
   return {
@@ -172,3 +175,33 @@ export async function trendingTracks({ genre = '', limit = 20, signal } = {}) {
 }
 
 export const AUDIUS_APP_NAME = APP_NAME;
+
+export async function findAudiusMatch(track, { timeout = 2500 } = {}) {
+  if (!track || track.source === 'audius' || track.source === 'local') return null;
+  const rawTitle = String(track.title || '').trim();
+  if (!rawTitle) return null;
+  const cleanStr = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+  const titleKey = cleanStr(rawTitle.replace(/\((?:feat|ft)[^)]*\)/i, '').replace(/\[(?:feat|ft)[^\]]*\]/i, ''));
+  const artistKey = cleanStr(track.artist || '');
+  try {
+    const query = `${rawTitle} ${track.artist || ''}`.trim();
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), timeout);
+    const results = await searchTracks(query, { limit: 8, signal: controller.signal })
+      .finally(() => window.clearTimeout(timer));
+    if (!results || !results.length) return null;
+    for (const item of results) {
+      if (!item.isFullTrack || !item.streamUrl) continue;
+      const itTitle = cleanStr(item.title);
+      const itArtist = cleanStr(item.artist);
+      if (itTitle === titleKey || itTitle.includes(titleKey) || titleKey.includes(itTitle)) {
+        if (!artistKey || itArtist.includes(artistKey) || artistKey.includes(itArtist)) {
+          return item;
+        }
+      }
+    }
+  } catch {
+    /* fallback on timeout or network error */
+  }
+  return null;
+}

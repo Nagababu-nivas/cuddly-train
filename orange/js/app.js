@@ -3,12 +3,12 @@
  * the views layer. Everything runs locally; no account or subscription.
  */
 
-import { $, parseHash, buildHash, bus } from './util.js?v=orange3';
-import { hydrateIcons } from './icons.js?v=orange3';
-import { store } from './store.js?v=orange3';
-import { player } from './player.js?v=orange3';
-import { showToastForError, toast } from './ui.js?v=orange3';
-import { initViews, renderRoute } from './views.js?v=orange3';
+import { $, parseHash, buildHash, bus } from './util.js?v=orange4';
+import { hydrateIcons } from './icons.js?v=orange4';
+import { store } from './store.js?v=orange4';
+import { player } from './player.js?v=orange4';
+import { showToastForError, toast } from './ui.js?v=orange4';
+import { initViews, renderRoute } from './views.js?v=orange4';
 
 const DEFAULT_HASH = buildHash('/listen');
 

@@ -2,17 +2,17 @@
 
 import {
   esc, formatTime, formatCount, plural, shuffleArray, yearOf, art, uniqueBy, hashString,
-} from './util.js?v=orange3';
-import { icon } from './icons.js?v=orange3';
-import * as api from './api.js?v=orange3';
-import { store } from './store.js?v=orange3';
-import { player } from './player.js?v=orange3';
+} from './util.js?v=orange4';
+import { icon } from './icons.js?v=orange4';
+import * as api from './api.js?v=orange4';
+import { store } from './store.js?v=orange4';
+import { player } from './player.js?v=orange4';
 import {
   viewState, setHeader, setMain, pageHead, shelf, card, hero, emptyState, errorState,
   skeletonShelf, skeletonHero, trackTable, registerTrackList, groupLibraryAlbums,
   groupLibraryArtists, totalDuration, artworkOf, displayName, fallbackStyle, artMedia,
   likeButton, sectionHead, registerList,
-} from './viewkit.js?v=orange3';
+} from './viewkit.js?v=orange4';
 
 function aliveCheck(alive) {
   return typeof alive === 'function' ? alive() : true;
@@ -334,7 +334,7 @@ export async function renderSearch(alive, query, type = 'all') {
     albums: albums.length,
     artists: artists.length,
   };
-  const top = songs[0] || audius[0] || albums[0] || artists[0] || null;
+  const top = audius[0] || songs[0] || albums[0] || artists[0] || null;
   registerTrackList('search-songs', songs, { type: 'search', query, title: `Search: ${query}` });
   registerTrackList('search-audius', audius, { type: 'search', query, title: `Audius: ${query}` });
 
@@ -356,7 +356,7 @@ export async function renderSearch(alive, query, type = 'all') {
     const isAudius = top.source === 'audius';
     const isSong = Boolean(top.trackId || isAudius);
     const isAlbum = Boolean(top.collectionId);
-    const topKind = isSong ? 'track' : isAlbum ? 'album' : 'artist';
+    const topKind = isSong ? (isAudius ? 'full track' : 'track preview') : isAlbum ? 'album' : 'artist';
     const topList = isAudius ? 'search-audius' : 'search-songs';
     const playAttr = isSong
       ? `data-act="play-row" data-list="${topList}" data-index="0"`
@@ -364,7 +364,7 @@ export async function renderSearch(alive, query, type = 'all') {
         ? `data-act="open" data-kind="album" data-id="${esc(top.id)}"`
         : `data-act="open" data-kind="artist" data-id="${esc(top.id)}"`;
     const topSubtitle = isSong
-      ? `${top.artist}${isAudius ? ' · Audius · Full track' : ` · ${top.album || ''}`}`
+      ? `${top.artist}${isAudius ? ' · Audius · Full track' : ` · ${top.album || ''} · 30s Preview`}`
       : isAlbum
         ? top.artist
         : top.genre || 'Artist';
@@ -382,16 +382,6 @@ export async function renderSearch(alive, query, type = 'all') {
     </section>`;
   }
 
-  if ((type === 'all' || type === 'songs') && songs.length) {
-    html += `<section class="section">
-      ${sectionHead('Songs', songs.length, type === 'all' ? `<button class="section-link" data-act="search-tab" data-type="songs" data-query="${esc(query)}">See all</button>` : '')}
-      ${trackTable(type === 'all' ? songs.slice(0, 10) : songs, {
-        listKey: 'search-songs',
-        context: { type: 'search', query, title: `Search: ${query}` },
-        showAlbum: true,
-      })}
-    </section>`;
-  }
   if ((type === 'all' || type === 'audius') && audius.length) {
     html += `<section class="section">
       ${sectionHead('Audius · Full tracks', audius.length, type === 'all' ? `<button class="section-link" data-act="search-tab" data-type="audius" data-query="${esc(query)}">See all</button>` : '')}
@@ -409,6 +399,18 @@ export async function renderSearch(alive, query, type = 'all') {
       description: `Audius has no full-length tracks for “${query}” right now.`,
       small: true,
     });
+  }
+
+  if ((type === 'all' || type === 'songs') && songs.length) {
+    html += `<section class="section">
+      ${sectionHead('Songs · 30s Previews', songs.length, type === 'all' ? `<button class="section-link" data-act="search-tab" data-type="songs" data-query="${esc(query)}">See all</button>` : '')}
+      <p class="section-note muted small">Catalog previews from Apple iTunes (plays 30-second clip).</p>
+      ${trackTable(type === 'all' ? songs.slice(0, 10) : songs, {
+        listKey: 'search-songs',
+        context: { type: 'search', query, title: `Search: ${query}` },
+        showAlbum: true,
+      })}
+    </section>`;
   }
   if ((type === 'all' || type === 'albums') && albums.length) {
     html += `<section class="section">

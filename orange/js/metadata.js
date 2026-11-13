@@ -5,7 +5,7 @@
  * the machine.
  */
 
-import { fileExt, hashString, stripExt } from './util.js?v=orange3';
+import { fileExt, hashString, stripExt } from './util.js?v=orange4';
 
 export const SUPPORTED_EXTENSIONS = ['mp3', 'm4a', 'aac', 'flac', 'wav', 'ogg', 'opus'];
 

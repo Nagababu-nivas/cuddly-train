@@ -7,8 +7,10 @@
  * No Apple account, subscription, token or DRM is involved.
  */
 
-import { art, uniqueBy, yearOf, storage } from './util.js?v=orange3';
-import { searchTracks as searchAudiusTracks, clearAudiusCache } from './providers/audius.js?v=orange3';
+import { art, uniqueBy, yearOf, storage } from './util.js?v=orange4';
+import { searchTracks as searchAudiusTracks, clearAudiusCache, findAudiusMatch } from './providers/audius.js?v=orange4';
+import { findFullTrackStream } from './providers/fulltrack.js?v=orange4';
+export { findAudiusMatch, findFullTrackStream };
 
 const SEARCH_URL = 'https://itunes.apple.com/search';
 const LOOKUP_URL = 'https://itunes.apple.com/lookup';

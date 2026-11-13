@@ -3,8 +3,8 @@
  * Binary audio/artwork lives in IndexedDB; this module only stores metadata.
  */
 
-import { bus, storage, uid, uniqueBy, shuffleArray } from './util.js?v=orange3';
-import { db } from './db.js?v=orange3';
+import { bus, storage, uid, uniqueBy, shuffleArray } from './util.js?v=orange4';
+import { db } from './db.js?v=orange4';
 
 const KEY = 'orange.state.v1';
 const LEGACY_KEY = 'cadence.state.v1';

@@ -1,9 +1,16 @@
-# Use this file when the repository root contains the `orange` folder.
-# If you instead make Orange itself the repository root, the included
-# orange/netlify.toml is used automatically.
 [build]
   publish = "orange"
   command = ""
+  functions = "netlify/functions"
 
-# Hash routing means no SPA redirect is required. Security headers are in
-# orange/_headers and apply to the published site.
+# Full-track streaming endpoint
+[[redirects]]
+  from = "/api/stream"
+  to = "/.netlify/functions/stream"
+  status = 200
+
+# JioSaavn API endpoint
+[[redirects]]
+  from = "/api/saavn"
+  to = "/.netlify/functions/saavn"
+  status = 200

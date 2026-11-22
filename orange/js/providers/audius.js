@@ -52,29 +52,63 @@ function audiusError(message, status = 0) {
 
 async function requestJson(path, { timeout = 12_000, signal } = {}) {
   let lastError = null;
+
   for (const host of API_HOSTS) {
+    if (signal?.aborted) {
+      throw new DOMException('Request aborted', 'AbortError');
+    }
+
     const controller = new AbortController();
-    const timer = window.setTimeout(() => controller.abort(), timeout);
-    if (signal) signal.addEventListener('abort', () => controller.abort(), { once: true });
+
+    const abortRequest = () => controller.abort();
+
+    signal?.addEventListener('abort', abortRequest, { once: true });
+
+    const timer = window.setTimeout(
+      () => controller.abort(),
+      timeout
+    );
+
     try {
       const response = await fetch(`${host}${path}`, {
-        headers: { Accept: 'application/json' },
+        headers: {
+          Accept: 'application/json',
+        },
         mode: 'cors',
         credentials: 'omit',
         signal: controller.signal,
       });
-      if (!response.ok) throw audiusError(`Audius request failed (${response.status})`, response.status);
+
+      if (!response.ok) {
+        throw audiusError(
+          `Audius request failed (${response.status})`,
+          response.status
+        );
+      }
+
       return await response.json();
+
     } catch (error) {
       lastError = error?.name === 'AbortError'
         ? audiusError('The Audius request timed out.', 408)
         : error;
-      // Only move on to the next discovery node for transport/server errors.
-      if (Number(lastError?.status) >= 400 && Number(lastError?.status) < 500) break;
+
+      const status = Number(lastError?.status) || 0;
+
+      // Invalid requests and permission errors should not be retried.
+      if ([400, 401, 403].includes(status)) {
+        break;
+      }
+
+      // Try the alternative host for temporary failures,
+      // missing resources, rate limits and network errors.
+
     } finally {
       window.clearTimeout(timer);
+      signal?.removeEventListener('abort', abortRequest);
     }
   }
+
   throw lastError || audiusError('Audius is unreachable.');
 }
 
@@ -176,32 +210,123 @@ export async function trendingTracks({ genre = '', limit = 20, signal } = {}) {
 
 export const AUDIUS_APP_NAME = APP_NAME;
 
-export async function findAudiusMatch(track, { timeout = 2500 } = {}) {
-  if (!track || track.source === 'audius' || track.source === 'local') return null;
-  const rawTitle = String(track.title || '').trim();
-  if (!rawTitle) return null;
-  const cleanStr = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
-  const titleKey = cleanStr(rawTitle.replace(/\((?:feat|ft)[^)]*\)/i, '').replace(/\[(?:feat|ft)[^\]]*\]/i, ''));
-  const artistKey = cleanStr(track.artist || '');
-  try {
-    const query = `${rawTitle} ${track.artist || ''}`.trim();
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => controller.abort(), timeout);
-    const results = await searchTracks(query, { limit: 8, signal: controller.signal })
-      .finally(() => window.clearTimeout(timer));
-    if (!results || !results.length) return null;
-    for (const item of results) {
-      if (!item.isFullTrack || !item.streamUrl) continue;
-      const itTitle = cleanStr(item.title);
-      const itArtist = cleanStr(item.artist);
-      if (itTitle === titleKey || itTitle.includes(titleKey) || titleKey.includes(itTitle)) {
-        if (!artistKey || itArtist.includes(artistKey) || artistKey.includes(itArtist)) {
-          return item;
-        }
-      }
-    }
-  } catch {
-    /* fallback on timeout or network error */
+function normalizeMatchText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\b(feat|featuring|ft)\b/g, ' ')
+    .replace(/[^a-z0-9]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function titleMatches(original, candidate) {
+  const a = normalizeMatchText(original);
+  const b = normalizeMatchText(candidate);
+
+  if (!a || !b) return false;
+  if (a === b) return true;
+
+  // Permit a small amount of extra title information,
+  // but reject broad substring matches.
+  const aWords = a.split(' ');
+  const bWords = b.split(' ');
+
+  const common = aWords.filter(word => bWords.includes(word));
+
+  return common.length >= Math.min(aWords.length, bWords.length) &&
+    Math.abs(aWords.length - bWords.length) <= 2;
+}
+
+function artistMatches(original, candidate) {
+  const a = normalizeMatchText(original);
+  const b = normalizeMatchText(candidate);
+
+  if (!a || !b) return false;
+  if (a === b) return true;
+
+  const aWords = new Set(a.split(' '));
+  const bWords = new Set(b.split(' '));
+
+  const common = [...aWords].filter(word => bWords.has(word));
+
+  return common.length >= Math.min(2, aWords.size);
+}
+
+function durationMatches(original, candidate) {
+  const a = Number(original) || 0;
+  const b = Number(candidate) || 0;
+
+  // If either duration is unavailable, don't reject on duration alone.
+  if (!a || !b) return true;
+
+  // Allow up to 8 seconds difference for normal recording variations.
+  return Math.abs(a - b) <= 8;
+}
+
+export async function findAudiusMatch(track, { timeout = 3500 } = {}) {
+  if (!track || track.source === 'audius' || track.source === 'local') {
+    return null;
   }
-  return null;
+
+  const title = String(track.title || '').trim();
+  const artist = String(track.artist || '').trim();
+
+  if (!title || !artist) return null;
+
+  try {
+    const query = `${title} ${artist}`;
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(
+      () => controller.abort(),
+      timeout
+    );
+
+    let results;
+
+    try {
+      results = await searchTracks(query, {
+        limit: 20,
+        signal: controller.signal,
+      });
+    } finally {
+      window.clearTimeout(timer);
+    }
+
+    if (!Array.isArray(results) || !results.length) {
+      return null;
+    }
+
+    const matches = results.filter(item => {
+      if (!item?.streamUrl || !item.isFullTrack) return false;
+
+      if (!titleMatches(title, item.title)) return false;
+      if (!artistMatches(artist, item.artist)) return false;
+      if (!durationMatches(track.duration, item.duration)) return false;
+
+      return true;
+    });
+
+    if (!matches.length) return null;
+
+    // Prefer the closest duration match.
+    matches.sort((a, b) => {
+      const originalDuration = Number(track.duration) || 0;
+
+      if (!originalDuration) return 0;
+
+      const aDiff = Math.abs(originalDuration - (Number(a.duration) || 0));
+      const bDiff = Math.abs(originalDuration - (Number(b.duration) || 0));
+
+      return aDiff - bDiff;
+    });
+
+    return matches[0];
+
+  } catch (error) {
+    console.warn('[Orange] Audius matching failed:', error);
+    return null;
+  }
 }
